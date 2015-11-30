@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Photoeffects</string>
+
+    <string name="pick_photo">Pick a photo</string>
+</resources>
