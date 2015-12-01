@@ -23,8 +23,12 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
         View.OnClickListener {
     public static final String TAG = "PhotoActivity";
 
-    private static int EFFECT_GRAYSCALE = 0;
-    private static int EFFECT_SEPIA = 1;
+    private static final String KEY_EFFECT = "effect";
+
+    private enum Effect {
+        GRAYSCALE,
+        SEPIA;
+    }
 
     @Bind(R.id.photoView)
     ImageView photoView;
@@ -38,6 +42,7 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
     private Uri imageUri;
 
     private BitmapDrawable drawable;
+    private Effect currentEffect = Effect.GRAYSCALE;
 
     private static ColorMatrix grayscale;
     private static ColorMatrix sepia;
@@ -73,32 +78,45 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
                         photoView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
                     else
                         photoView.getViewTreeObserver().removeGlobalOnLayoutListener(this);
+                    //TODO: We need to load image with new size if screen is rotated.
                     getSupportLoaderManager().initLoader(0, null, PhotoActivity.this);
                 }
             });
         }
+
+        if (savedInstanceState != null) {
+            currentEffect = Effect.values()[savedInstanceState.getInt(KEY_EFFECT)];
+        }
+        setEffect(currentEffect);
+    }
+
+    @Override
+    protected void onSaveInstanceState(Bundle outState) {
+        super.onSaveInstanceState(outState);
+        outState.putInt(KEY_EFFECT, currentEffect.ordinal());
     }
 
     @Override
     public void onClick(View v) {
         if (v == grayscaleButton)
-            setEffect(EFFECT_GRAYSCALE);
+            setEffect(Effect.GRAYSCALE);
         else if (v == sepiaButton)
-            setEffect(EFFECT_SEPIA);
+            setEffect(Effect.SEPIA);
     }
 
-    private void setEffect(int effectId) {
-        ColorMatrix colorMatrix = null;
-
-        if (effectId == EFFECT_GRAYSCALE) {
-            switchButtons(grayscaleButton);
-            colorMatrix = grayscale;
-        } else if (effectId == EFFECT_SEPIA) {
-            switchButtons(sepiaButton);
-            colorMatrix = sepia;
+    private void setEffect(Effect effect) {
+        currentEffect = effect;
+        switch (effect) {
+            case GRAYSCALE:
+                switchButtons(grayscaleButton);
+                break;
+            case SEPIA:
+                switchButtons(sepiaButton);
+                break;
         }
 
-        drawable.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
+        if (drawable != null)
+            configureDrawable(effect);
     }
 
     private void switchButtons(RadioButton selectedButton) {
@@ -109,6 +127,19 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
         }
     }
 
+    private void configureDrawable(Effect effect) {
+        ColorMatrix colorMatrix = null;
+        switch (effect) {
+            case GRAYSCALE:
+                colorMatrix = grayscale;
+                break;
+            case SEPIA:
+                colorMatrix = sepia;
+                break;
+        }
+        drawable.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
+    }
+
     @Override
     public Loader<Bitmap> onCreateLoader(int id, Bundle args) {
         return new BitmapLoader(this, imageUri, photoView.getWidth(), photoView.getHeight());
@@ -117,8 +148,7 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
     @Override
     public void onLoadFinished(Loader<Bitmap> loader, Bitmap bitmap) {
         drawable = new BitmapDrawable(getResources(), bitmap);
-
-        drawable.setColorFilter(new ColorMatrixColorFilter(sepia));
+        configureDrawable(currentEffect);
         photoView.setImageDrawable(drawable);
     }
 

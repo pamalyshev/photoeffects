@@ -13,5 +13,6 @@
         <item name="android:textColor">@color/radio_button_text_colors</item>
         <item name="android:button">@null</item>
         <item name="android:background">@drawable/radio_button_background</item>
+        <item name="android:saveEnabled">false</item>
     </style>
 </resources>
