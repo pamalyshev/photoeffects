@@ -3,10 +3,35 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="@android:color/black"
     tools:context="pamalyshev.photoeffects.PhotoActivity">
 
     <ImageView
+        android:id="@+id/photoView"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:id="@+id/photoView" />
+        android:layout_height="match_parent" />
+
+    <LinearLayout
+        android:id="@+id/buttonsContainer"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentEnd="true">
+
+        <RadioButton
+            android:id="@+id/grayscaleButton"
+            style="@style/MyRadioButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Grayscale" />
+
+        <RadioButton
+            android:id="@+id/sepiaButton"
+            style="@style/MyRadioButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sepia" />
+    </LinearLayout>
+
 </RelativeLayout>

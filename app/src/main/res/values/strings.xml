@@ -2,4 +2,7 @@
     <string name="app_name">Photoeffects</string>
 
     <string name="pick_photo">Pick a photo</string>
+
+    <string name="photo_effect_grayscale">Grayscale</string>
+    <string name="photo_effect_sepia">Sepia</string>
 </resources>

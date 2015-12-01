@@ -3,4 +3,7 @@
     <string name="app_name">Фотоэффекты</string>
 
     <string name="pick_photo">Выбрать фотографию</string>
+
+    <string name="photo_effect_grayscale">Оттенки серого</string>
+    <string name="photo_effect_sepia">Сепия</string>
 </resources>
