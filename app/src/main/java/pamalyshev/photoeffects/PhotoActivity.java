@@ -20,7 +20,7 @@ import butterknife.Bind;
 import butterknife.ButterKnife;
 
 public class PhotoActivity extends AppCompatActivity implements LoaderManager.LoaderCallbacks<Bitmap>,
-        View.OnClickListener {
+        View.OnClickListener, InitialLayoutHelper.InitialLayoutListener {
     public static final String TAG = "PhotoActivity";
 
     private static final String KEY_EFFECT = "effect";
@@ -69,25 +69,18 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
         grayscaleButton.setOnClickListener(this);
 
         imageUri = getIntent().getData();
-        ViewTreeObserver viewTreeObserver = photoView.getViewTreeObserver();
-        if (viewTreeObserver.isAlive()) {
-            viewTreeObserver.addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
-                @Override
-                public void onGlobalLayout() {
-                    if (Build.VERSION.SDK_INT >= 16)
-                        photoView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
-                    else
-                        photoView.getViewTreeObserver().removeGlobalOnLayoutListener(this);
-                    //TODO: We need to load image with new size if screen is rotated.
-                    getSupportLoaderManager().initLoader(0, null, PhotoActivity.this);
-                }
-            });
-        }
+        InitialLayoutHelper.registerListener(photoView, this);
 
         if (savedInstanceState != null) {
             currentEffect = Effect.values()[savedInstanceState.getInt(KEY_EFFECT)];
         }
         setEffect(currentEffect);
+    }
+
+    @Override
+    public void onInitialLayoutFinished() {
+        //TODO: We need to load image with new size if screen is rotated.
+        getSupportLoaderManager().initLoader(0, null, this);
     }
 
     @Override
