@@ -6,4 +6,8 @@
 
     <string name="photo_effect_grayscale">Оттенки серого</string>
     <string name="photo_effect_sepia">Сепия</string>
+
+    <string name="mode_before">До</string>
+    <string name="mode_after">После</string>
+    <string name="mode_before_n_after">До и после</string>
 </resources>

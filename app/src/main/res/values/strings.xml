@@ -5,4 +5,8 @@
 
     <string name="photo_effect_grayscale">Grayscale</string>
     <string name="photo_effect_sepia">Sepia</string>
+
+    <string name="mode_before">Before</string>
+    <string name="mode_after">After</string>
+    <string name="mode_before_n_after">Before&amp;after</string>
 </resources>

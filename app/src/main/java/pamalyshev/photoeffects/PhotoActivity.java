@@ -4,17 +4,25 @@ import android.graphics.Bitmap;
 import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.InsetDrawable;
+import android.graphics.drawable.LayerDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.Loader;
+import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
+import android.support.v7.widget.AppCompatSpinner;
 import android.view.View;
 import android.view.ViewTreeObserver;
+import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
+import android.widget.SimpleAdapter;
+import android.widget.Spinner;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
@@ -30,6 +38,23 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
         SEPIA;
     }
 
+    private enum Mode implements NamedItem {
+        BEFORE(R.string.mode_before),
+        AFTER(R.string.mode_after),
+        BEFORE_N_AFTER(R.string.mode_before_n_after);
+
+        private int nameResId;
+
+        Mode(int nameResId) {
+            this.nameResId = nameResId;
+        }
+
+        @Override
+        public int getNameResId() {
+            return nameResId;
+        }
+    }
+
     @Bind(R.id.photoView)
     ImageView photoView;
     @Bind(R.id.grayscaleButton)
@@ -41,7 +66,7 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
 
     private Uri imageUri;
 
-    private BitmapDrawable drawable;
+    private Drawable drawable;
     private Effect currentEffect = Effect.GRAYSCALE;
 
     private static ColorMatrix grayscale;
@@ -75,6 +100,21 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
             currentEffect = Effect.values()[savedInstanceState.getInt(KEY_EFFECT)];
         }
         setEffect(currentEffect);
+
+        configureActionBar();
+    }
+
+    private void configureActionBar() {
+        ActionBar actionBar = getSupportActionBar();
+        actionBar.setDisplayShowTitleEnabled(false);
+        actionBar.setDisplayShowCustomEnabled(true);
+        Spinner abSpinner = new AppCompatSpinner(this);
+
+        EnumAdapter<Mode> adapter = new EnumAdapter<>(Mode.class, this,
+                android.R.layout.simple_spinner_dropdown_item);
+        abSpinner.setAdapter(adapter);
+
+        actionBar.setCustomView(abSpinner);
     }
 
     @Override
@@ -141,6 +181,9 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
     @Override
     public void onLoadFinished(Loader<Bitmap> loader, Bitmap bitmap) {
         drawable = new BitmapDrawable(getResources(), bitmap);
+
+
+        drawable = new BeforeAfterDrawable(drawable);
         configureDrawable(currentEffect);
         photoView.setImageDrawable(drawable);
     }
