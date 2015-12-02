@@ -94,7 +94,6 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
         grayscaleButton.setOnClickListener(this);
 
         imageUri = getIntent().getData();
-        InitialLayoutHelper.registerListener(photoView, this);
 
         if (savedInstanceState != null) {
             currentEffect = Effect.values()[savedInstanceState.getInt(KEY_EFFECT)];
@@ -102,6 +101,7 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
         setEffect(currentEffect);
 
         configureActionBar();
+        InitialLayoutHelper.registerListener(photoView, this);
     }
 
     private void configureActionBar() {
@@ -119,8 +119,15 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
 
     @Override
     public void onInitialLayoutFinished() {
-        //TODO: We need to load image with new size if screen is rotated.
-        getSupportLoaderManager().initLoader(0, null, this);
+        //TODO: Since we use Picasso, which caches bitmaps in memory,
+        // we can remove BitmapLoader and use Picasso with callbacks.
+        LoaderManager loaderManager = getSupportLoaderManager();
+        BitmapLoader oldLoader = (BitmapLoader) loaderManager.<Bitmap>getLoader(0);
+        if (oldLoader != null
+                && (oldLoader.getWidth() != photoView.getWidth()
+                || oldLoader.getHeight() != photoView.getHeight()))
+            loaderManager.destroyLoader(0);
+        loaderManager.initLoader(0, null, this);
     }
 
     @Override
