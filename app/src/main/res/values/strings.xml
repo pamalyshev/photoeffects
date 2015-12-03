@@ -9,4 +9,7 @@
     <string name="mode_before">Before</string>
     <string name="mode_after">After</string>
     <string name="mode_before_n_after">Before&amp;after</string>
+
+    <string name="error_cant_load_image_general">Can\'t load image</string>
+    <string name="error_cant_load_image_storage_permissions">Can\'t load image\nStorage permissions needed</string>
 </resources>

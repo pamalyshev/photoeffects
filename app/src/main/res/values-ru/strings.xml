@@ -10,4 +10,8 @@
     <string name="mode_before">До</string>
     <string name="mode_after">После</string>
     <string name="mode_before_n_after">До и после</string>
+
+    <string name="error_cant_load_image_general">Не удалось загрузить изображение</string>
+    <string name="error_cant_load_image_storage_permissions">Не удалось загрузить изображение\nНеобходимо разрешение на использование памяти</string>
+
 </resources>

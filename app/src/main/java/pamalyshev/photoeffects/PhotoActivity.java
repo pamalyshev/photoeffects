@@ -1,5 +1,8 @@
 package pamalyshev.photoeffects;
 
+import android.Manifest;
+import android.annotation.TargetApi;
+import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.ColorMatrix;
@@ -7,29 +10,40 @@ import android.graphics.ColorMatrixColorFilter;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.LoaderManager;
+import android.support.v4.content.ContextCompat;
 import android.support.v4.content.Loader;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.AppCompatSpinner;
-import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ProgressBar;
 import android.widget.RadioButton;
 import android.widget.Spinner;
+import android.widget.TextView;
+
+import java.util.List;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
 
-public class PhotoActivity extends AppCompatActivity implements LoaderManager.LoaderCallbacks<Bitmap>,
+public class PhotoActivity extends AppCompatActivity
+        implements LoaderManager.LoaderCallbacks<AsyncResult<Bitmap>>,
         View.OnClickListener, InitialLayoutHelper.InitialLayoutListener {
     public static final String TAG = "PhotoActivity";
 
     private static final String KEY_EFFECT = "effect";
     private static final String KEY_MODE = "mode";
+
+    private static final int PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE = 1;
+    private static final String KEY_WAITING_FOR_PERM_REQUEST_RESULT = "waitingForPermRequestResult";
 
     private enum Effect {
         GRAYSCALE,
@@ -53,8 +67,19 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
         }
     }
 
+    private enum State {
+        LOADING,
+        LOADED_OK,
+        LOADED_ERROR_GENERAL,
+        LOADED_ERROR_STORAGE_PERMISSIONS;
+    }
+
     @Bind(R.id.photoView)
     ImageView photoView;
+    @Bind(R.id.activityCircle)
+    ProgressBar activityCircle;
+    @Bind(R.id.textView)
+    TextView textView;
     @Bind(R.id.grayscaleButton)
     RadioButton grayscaleButton;
     @Bind(R.id.sepiaButton)
@@ -62,11 +87,16 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
     @Bind(R.id.buttonsContainer)
     LinearLayout buttonsContainer;
 
+    @Bind({R.id.photoView, R.id.activityCircle, R.id.textView})
+    List<View> stateDependantViews;
+
     private Uri imageUri;
 
     private Bitmap bitmap;
     private Effect currentEffect = Effect.GRAYSCALE;
     private Mode currentMode = Mode.BEFORE_N_AFTER;
+    private State currentState = State.LOADING;
+    private boolean waitingForPermRequestResult;
 
     private static ColorMatrix grayscale;
     private static ColorMatrix sepia;
@@ -97,10 +127,12 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
         if (savedInstanceState != null) {
             currentEffect = Effect.values()[savedInstanceState.getInt(KEY_EFFECT)];
             currentMode = Mode.values()[savedInstanceState.getInt(KEY_MODE)];
+            waitingForPermRequestResult = savedInstanceState.getBoolean(KEY_WAITING_FOR_PERM_REQUEST_RESULT);
         }
 
         setEffect(currentEffect);
         setMode(currentMode);
+        setState(State.LOADING);
 
         configureActionBar();
         InitialLayoutHelper.registerListener(photoView, this);
@@ -138,7 +170,7 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
         //TODO: Since we use Picasso, which caches bitmaps in memory,
         // we can remove BitmapLoader and use Picasso with callbacks.
         LoaderManager loaderManager = getSupportLoaderManager();
-        BitmapLoader oldLoader = (BitmapLoader) loaderManager.<Bitmap>getLoader(0);
+        BitmapLoader oldLoader = (BitmapLoader) loaderManager.<AsyncResult<Bitmap>>getLoader(0);
         if (oldLoader != null
                 && (oldLoader.getWidth() != photoView.getWidth()
                 || oldLoader.getHeight() != photoView.getHeight()))
@@ -151,16 +183,13 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
         super.onSaveInstanceState(outState);
         outState.putInt(KEY_EFFECT, currentEffect.ordinal());
         outState.putInt(KEY_MODE, currentMode.ordinal());
+        outState.putBoolean(KEY_WAITING_FOR_PERM_REQUEST_RESULT, waitingForPermRequestResult);
     }
 
     private void setMode(Mode mode) {
         currentMode = mode;
 
-        if (mode == Mode.BEFORE)
-            buttonsContainer.setVisibility(View.GONE);
-        else
-            buttonsContainer.setVisibility(View.VISIBLE);
-
+        configureButtons();
         configurePhotoView();
     }
 
@@ -174,15 +203,24 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
 
     private void setEffect(Effect effect) {
         currentEffect = effect;
-        switch (effect) {
-            case GRAYSCALE:
-                switchButtons(grayscaleButton);
-                break;
-            case SEPIA:
-                switchButtons(sepiaButton);
-                break;
-        }
+        configureButtons();
         configurePhotoView();
+    }
+
+    private void configureButtons() {
+        if (currentMode == Mode.BEFORE || currentState != State.LOADED_OK) {
+            buttonsContainer.setVisibility(View.GONE);
+        } else {
+            buttonsContainer.setVisibility(View.VISIBLE);
+            switch (currentEffect) {
+                case GRAYSCALE:
+                    switchButtons(grayscaleButton);
+                    break;
+                case SEPIA:
+                    switchButtons(sepiaButton);
+                    break;
+            }
+        }
     }
 
     private void switchButtons(RadioButton selectedButton) {
@@ -234,19 +272,92 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
         drawable.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
     }
 
+    private void setState(State state) {
+        currentState = state;
+        View visibleView = null;
+        switch (state) {
+            case LOADING:
+                visibleView = activityCircle;
+                break;
+            case LOADED_OK:
+                visibleView = photoView;
+                break;
+            case LOADED_ERROR_GENERAL:
+                visibleView = textView;
+                textView.setText(R.string.error_cant_load_image_general);
+                break;
+            case LOADED_ERROR_STORAGE_PERMISSIONS:
+                visibleView = textView;
+                textView.setText(R.string.error_cant_load_image_storage_permissions);
+                break;
+        }
+
+        for (View view : stateDependantViews) {
+            //TODO:They are INVISIBLE but not GONE just to be correctly measured.
+            view.setVisibility(view == visibleView ? View.VISIBLE : View.INVISIBLE);
+        }
+
+        configureButtons();
+    }
+
     @Override
-    public Loader<Bitmap> onCreateLoader(int id, Bundle args) {
+    public Loader<AsyncResult<Bitmap>> onCreateLoader(int id, Bundle args) {
         return new BitmapLoader(this, imageUri, photoView.getWidth(), photoView.getHeight());
     }
 
     @Override
-    public void onLoadFinished(Loader<Bitmap> loader, Bitmap bitmap) {
-        this.bitmap = bitmap;
-        configurePhotoView();
+    public void onLoadFinished(Loader<AsyncResult<Bitmap>> loader, AsyncResult<Bitmap> result) {
+        Exception exception = result.getException();
+        if (exception == null) {
+            this.bitmap = result.getValue();
+            configurePhotoView();
+            setState(State.LOADED_OK);
+        } else if (exception instanceof SecurityException
+                && !haveStoragePermissions()) {
+            setState(State.LOADED_ERROR_STORAGE_PERMISSIONS);
+            requestStoragePermissionsIfNeeded();
+        } else {
+            setState(State.LOADED_ERROR_GENERAL);
+        }
     }
 
     @Override
-    public void onLoaderReset(Loader<Bitmap> loader) {
-        photoView.setImageDrawable(null);
+    public void onLoaderReset(Loader<AsyncResult<Bitmap>> loader) {
+        this.bitmap = null;
+        configurePhotoView();
+        setState(State.LOADING);
+    }
+
+    private boolean haveStoragePermissions() {
+        if (Build.VERSION.SDK_INT < 16)
+            return true;
+        return ContextCompat.checkSelfPermission(this,
+                Manifest.permission.READ_EXTERNAL_STORAGE)
+                == PackageManager.PERMISSION_GRANTED;
+    }
+
+    @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
+    private void requestStoragePermissionsIfNeeded() {
+        if (!waitingForPermRequestResult) {
+            ActivityCompat.requestPermissions(this,
+                    new String[]{Manifest.permission.READ_EXTERNAL_STORAGE},
+                    PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE);
+            waitingForPermRequestResult = true;
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSIONS_REQUEST_READ_EXTERNAL_STORAGE
+                && grantResults.length > 0
+                && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            restartImageLoader();
+            waitingForPermRequestResult = false;
+        }
+    }
+
+    private void restartImageLoader() {
+        getSupportLoaderManager().restartLoader(0, null, this);
     }
 }

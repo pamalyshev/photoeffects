@@ -8,16 +8,14 @@ import android.util.Log;
 
 import com.squareup.picasso.Picasso;
 
-import java.io.IOException;
-
 /**
  * Created by pamalyshev on 30.11.15.
  */
-public class BitmapLoader extends AsyncTaskLoader<Bitmap> {
+public class BitmapLoader extends AsyncTaskLoader<AsyncResult<Bitmap>> {
     public static final String TAG = "BitmapLoader";
 
     private Uri uri;
-    private Bitmap bitmap;
+    private AsyncResult<Bitmap> result;
     private int width;
     private int height;
 
@@ -38,24 +36,27 @@ public class BitmapLoader extends AsyncTaskLoader<Bitmap> {
 
     @Override
     protected void onStartLoading() {
-        if (bitmap != null)
-            deliverResult(bitmap);
-        forceLoad();
+        if (result != null && result.getException() == null)
+            deliverResult(result);
+        else
+            forceLoad();
     }
 
     @Override
     protected void onReset() {
-        bitmap = null;
+        result = null;
     }
 
     @Override
-    public Bitmap loadInBackground() {
+    public AsyncResult<Bitmap> loadInBackground() {
         try {
-            bitmap = Picasso.with(getContext()).load(uri).resize(width, height).centerInside().get();
-        } catch (IOException e) {
+            //TODO: If Picasso won't be used for "recents"
+            // (where multiple bitmaps need to be loaded) remove it, and use BitmapFactory with inSampleSize.
+            Bitmap bitmap = Picasso.with(getContext()).load(uri).resize(width, height).centerInside().get();
+            return new AsyncResult<>(bitmap);
+        } catch (Exception e) {
             Log.e(TAG, "Caught exception ", e);
+            return new AsyncResult<>(e);
         }
-
-        return bitmap;
     }
 }
