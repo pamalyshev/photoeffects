@@ -1,27 +1,24 @@
 package pamalyshev.photoeffects;
 
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.ColorMatrix;
 import android.graphics.ColorMatrixColorFilter;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
-import android.graphics.drawable.InsetDrawable;
-import android.graphics.drawable.LayerDrawable;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
 import android.support.v4.app.LoaderManager;
 import android.support.v4.content.Loader;
 import android.support.v7.app.ActionBar;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.AppCompatSpinner;
+import android.util.Log;
 import android.view.View;
-import android.view.ViewTreeObserver;
-import android.widget.ArrayAdapter;
+import android.widget.AdapterView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
-import android.widget.SimpleAdapter;
 import android.widget.Spinner;
 
 import butterknife.Bind;
@@ -32,6 +29,7 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
     public static final String TAG = "PhotoActivity";
 
     private static final String KEY_EFFECT = "effect";
+    private static final String KEY_MODE = "mode";
 
     private enum Effect {
         GRAYSCALE,
@@ -66,8 +64,9 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
 
     private Uri imageUri;
 
-    private Drawable drawable;
+    private Bitmap bitmap;
     private Effect currentEffect = Effect.GRAYSCALE;
+    private Mode currentMode = Mode.BEFORE_N_AFTER;
 
     private static ColorMatrix grayscale;
     private static ColorMatrix sepia;
@@ -97,8 +96,11 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
 
         if (savedInstanceState != null) {
             currentEffect = Effect.values()[savedInstanceState.getInt(KEY_EFFECT)];
+            currentMode = Mode.values()[savedInstanceState.getInt(KEY_MODE)];
         }
+
         setEffect(currentEffect);
+        setMode(currentMode);
 
         configureActionBar();
         InitialLayoutHelper.registerListener(photoView, this);
@@ -106,14 +108,28 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
 
     private void configureActionBar() {
         ActionBar actionBar = getSupportActionBar();
+        if (actionBar == null)
+            throw new NullPointerException("No action bar found");
+
         actionBar.setDisplayShowTitleEnabled(false);
         actionBar.setDisplayShowCustomEnabled(true);
         Spinner abSpinner = new AppCompatSpinner(this);
+        abSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                Mode mode = (Mode) parent.getAdapter().getItem(position);
+                setMode(mode);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+            } //Never happens
+        });
 
         EnumAdapter<Mode> adapter = new EnumAdapter<>(Mode.class, this,
                 android.R.layout.simple_spinner_dropdown_item);
         abSpinner.setAdapter(adapter);
-
+        abSpinner.setSelection(currentMode.ordinal());
         actionBar.setCustomView(abSpinner);
     }
 
@@ -134,6 +150,18 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
         outState.putInt(KEY_EFFECT, currentEffect.ordinal());
+        outState.putInt(KEY_MODE, currentMode.ordinal());
+    }
+
+    private void setMode(Mode mode) {
+        currentMode = mode;
+
+        if (mode == Mode.BEFORE)
+            buttonsContainer.setVisibility(View.GONE);
+        else
+            buttonsContainer.setVisibility(View.VISIBLE);
+
+        configurePhotoView();
     }
 
     @Override
@@ -154,9 +182,7 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
                 switchButtons(sepiaButton);
                 break;
         }
-
-        if (drawable != null)
-            configureDrawable(effect);
+        configurePhotoView();
     }
 
     private void switchButtons(RadioButton selectedButton) {
@@ -167,7 +193,35 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
         }
     }
 
-    private void configureDrawable(Effect effect) {
+    private void configurePhotoView() {
+        Drawable currentDrawable = null;
+        if (bitmap != null) {
+            BitmapDrawable bitmapDrawable = new BitmapDrawable(getResources(), bitmap);
+            switch (currentMode) {
+                case BEFORE:
+                    currentDrawable = bitmapDrawable;
+                    break;
+                case AFTER:
+                    currentDrawable = bitmapDrawable;
+                    configureDrawable(currentDrawable, currentEffect);
+                    break;
+                case BEFORE_N_AFTER:
+                    BeforeAfterDrawable beforeAfterDrawable = new BeforeAfterDrawable(bitmapDrawable);
+
+                    Resources res = getResources();
+                    float splitLineWidth = res.getDimension(R.dimen.splitLineWidth);
+                    int splitLineColor = res.getColor(R.color.splitLineColor);
+                    beforeAfterDrawable.setSplitLine(splitLineWidth, splitLineColor);
+
+                    currentDrawable = beforeAfterDrawable;
+                    configureDrawable(currentDrawable, currentEffect);
+                    break;
+            }
+        }
+        photoView.setImageDrawable(currentDrawable);
+    }
+
+    private void configureDrawable(Drawable drawable, Effect effect) {
         ColorMatrix colorMatrix = null;
         switch (effect) {
             case GRAYSCALE:
@@ -187,12 +241,8 @@ public class PhotoActivity extends AppCompatActivity implements LoaderManager.Lo
 
     @Override
     public void onLoadFinished(Loader<Bitmap> loader, Bitmap bitmap) {
-        drawable = new BitmapDrawable(getResources(), bitmap);
-
-
-        drawable = new BeforeAfterDrawable(drawable);
-        configureDrawable(currentEffect);
-        photoView.setImageDrawable(drawable);
+        this.bitmap = bitmap;
+        configurePhotoView();
     }
 
     @Override
